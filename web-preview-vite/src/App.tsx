@@ -1950,6 +1950,15 @@ const MessagesScreen: React.FC = () => {
     } catch {} finally { setSending(false); }
   };
 
+  const deleteConv = async (convId: number) => {
+    if (!window.confirm('Delete this conversation?')) return;
+    try {
+      await apiClient.delete(`/api/messaging/conversations/${convId}/`);
+      setConvs((prev) => prev.filter((c) => c.id !== convId));
+      if (activeConv?.id === convId) { setActiveConv(null); setMessages([]); }
+    } catch {}
+  };
+
   const otherName = (conv: any) => {
     if (!user) return 'Unknown';
     return conv.sender === user.id ? conv.receiver_name : conv.sender_name;
@@ -2010,6 +2019,11 @@ const MessagesScreen: React.FC = () => {
                   {conv.last_message?.created_at && ` · ${timeAgo(conv.last_message.created_at)}`}
                 </div>
               </div>
+              <span onClick={(e) => { e.stopPropagation(); deleteConv(conv.id); }}
+                style={{ color: '#ccc', fontSize: 16, padding: '4px 6px', cursor: 'pointer', flexShrink: 0 }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = '#c62828')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = '#ccc')}
+                title="Delete conversation">✕</span>
             </div>
           ))}
         </div>
@@ -2193,9 +2207,26 @@ const HomeScreen: React.FC<{ onNavigate: (tab: Tab) => void }> = ({ onNavigate }
   );
 };
 
+const getTabFromHash = (): Tab => {
+  const hash = window.location.hash.replace('#', '') as Tab;
+  const valid: Tab[] = ['home', 'swipes', 'forum', 'messages', 'profile', 'admin'];
+  return valid.includes(hash) ? hash : 'home';
+};
+
 const MainApp: React.FC = () => {
   const { user, logout } = useAuth();
-  const [tab, setTab] = useState<Tab>('home');
+  const [tab, setTab] = useState<Tab>(getTabFromHash());
+
+  useEffect(() => {
+    const onHashChange = () => setTab(getTabFromHash());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  const changeTab = (t: Tab) => {
+    window.location.hash = t;
+    setTab(t);
+  };
 
   const TAB_LABELS: { key: Tab; label: string; icon: string }[] = [
     { key: 'home', label: 'Home', icon: '🏠' },
@@ -2219,7 +2250,7 @@ const MainApp: React.FC = () => {
         </div>
       ) : (
         <div className="main-content">
-          {tab === 'home' && <HomeScreen onNavigate={setTab} />}
+          {tab === 'home' && <HomeScreen onNavigate={changeTab} />}
           {tab === 'swipes' && <SwipesScreen />}
           {tab === 'forum' && <ForumScreen />}
           {tab === 'profile' && <ProfileScreen />}
@@ -2229,7 +2260,7 @@ const MainApp: React.FC = () => {
 
       <div className="tab-bar">
         {TAB_LABELS.map((t) => (
-          <button key={t.key} className={`tab-btn ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+          <button key={t.key} className={`tab-btn ${tab === t.key ? 'active' : ''}`} onClick={() => changeTab(t.key)}>
             <span className="tab-icon">{t.icon}</span>
             <span className="tab-label">{t.label}</span>
           </button>

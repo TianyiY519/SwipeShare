@@ -16,6 +16,8 @@ export default function ChatDetailScreen({ route }: any) {
 
   useEffect(() => {
     loadMessages();
+    const interval = setInterval(loadMessages, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadMessages = async () => {

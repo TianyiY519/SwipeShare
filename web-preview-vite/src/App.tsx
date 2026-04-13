@@ -1901,7 +1901,21 @@ const MessagesScreen: React.FC = () => {
 
   useEffect(() => {
     loadConvs();
+    const interval = setInterval(loadConvs, 5000);
+    return () => clearInterval(interval);
   }, []);
+
+  // Auto-poll messages when a conversation is open
+  useEffect(() => {
+    if (!activeConv) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiClient.get(`/api/messaging/conversations/${activeConv.id}/messages/`);
+        setMessages(res.data);
+      } catch {}
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [activeConv]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

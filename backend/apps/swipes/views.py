@@ -77,6 +77,15 @@ class SwipeListingViewSet(viewsets.ModelViewSet):
             raise permissions.PermissionDenied("You can only delete your own listings")
         if instance.status != 'open':
             raise permissions.PermissionDenied("Cannot delete listing that is not open")
+
+        # Increment completed count on user profile
+        user = instance.user
+        if instance.type == 'donation':
+            user.swipes_donated += instance.quantity
+        else:
+            user.swipes_received += instance.quantity
+        user.save(update_fields=['swipes_donated', 'swipes_received'])
+
         instance.status = 'cancelled'
         instance.save()
 
@@ -143,14 +152,11 @@ class SwipeListingViewSet(viewsets.ModelViewSet):
             total=Sum('quantity'))['total'] or 0
         available_requests = user.listings.filter(type='request', status='open').aggregate(
             total=Sum('quantity'))['total'] or 0
-        completed_donations = user.donations.filter(status='completed').count()
-        completed_requests = user.requests.filter(status='completed').count()
-
         stats = {
             'total_donations': available_donations,
             'total_requests': available_requests,
             'active_listings': user.listings.filter(status='open').count(),
-            'completed_matches': completed_donations + completed_requests,
+            'completed_matches': user.swipes_donated + user.swipes_received,
             'pending_matches': user.donations.filter(status='pending').count() +
                               user.requests.filter(status='pending').count(),
         }

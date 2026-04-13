@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -22,10 +22,23 @@ export default function MessagesScreen({ navigation }: any) {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  const deleteConv = (convId: number) => {
+    Alert.alert('Delete', 'Delete this conversation?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await api.delete(`/api/messaging/conversations/${convId}/`);
+          setConvs((prev) => prev.filter((c) => c.id !== convId));
+        } catch {}
+      }},
+    ]);
+  };
+
   const renderItem = ({ item }: { item: any }) => {
     const otherName = item.sender === user?.id ? item.receiver_name : item.sender_name;
     return (
-      <TouchableOpacity style={s.card} onPress={() => navigation.navigate('ChatDetail', { conversation: item })} activeOpacity={0.7}>
+      <TouchableOpacity style={s.card} onPress={() => navigation.navigate('ChatDetail', { conversation: item })}
+        onLongPress={() => deleteConv(item.id)} activeOpacity={0.7}>
         <View style={s.cardRow}>
           <View style={s.avatar}>
             <Text style={s.avatarText}>{otherName?.charAt(0) || '?'}</Text>
@@ -46,6 +59,9 @@ export default function MessagesScreen({ navigation }: any) {
               {item.listing_type === 'donation' ? 'Donation' : 'Request'} · {item.listing_date}
             </Text>
           </View>
+          <TouchableOpacity onPress={() => deleteConv(item.id)} style={s.deleteBtn}>
+            <Ionicons name="trash-outline" size={18} color="#ccc" />
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
@@ -92,4 +108,5 @@ const s = StyleSheet.create({
   },
   unreadText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   empty: { textAlign: 'center', color: '#999', marginTop: 40, fontSize: 15 },
+  deleteBtn: { padding: 8 },
 });

@@ -60,6 +60,13 @@ class ConversationViewSet(viewsets.ModelViewSet):
         serializer = MessageSerializer(msgs, many=True, context={'request': request})
         return Response(serializer.data)
 
+    def destroy(self, request, pk=None):
+        conv = self.get_object()
+        if conv.sender != request.user and conv.receiver != request.user:
+            return Response({'detail': 'Not allowed'}, status=status.HTTP_403_FORBIDDEN)
+        conv.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @action(detail=True, methods=['post'])
     def reply(self, request, pk=None):
         conv = self.get_object()

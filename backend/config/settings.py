@@ -180,10 +180,15 @@ SIMPLE_JWT = {
 }
 
 # CORS Settings (for React Native)
-CORS_ALLOWED_ORIGINS = config(
+CORS_ALLOWED_ORIGINS = os.environ.get(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:8081,http://localhost:8080,http://localhost:3000,http://10.0.2.2:8081'
+    'http://localhost:8081,http://localhost:8080,http://localhost:3000,http://localhost:5173,http://10.0.2.2:8081'
 ).split(',')
+CORS_ALLOWED_ORIGINS += [
+    'https://www.dsm.fordham.edu',
+    'http://www.dsm.fordham.edu',
+    'https://swipeshare-production.up.railway.app',
+]
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [

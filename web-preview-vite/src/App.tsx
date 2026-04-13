@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, createContext, useContext } from 'r
 import axios from 'axios';
 import './App.css';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'https://swipeshare-production.up.railway.app';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

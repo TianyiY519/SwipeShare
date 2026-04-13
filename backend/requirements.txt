@@ -23,9 +23,6 @@ python-decouple==3.8
 # Email
 django-anymail==10.2  # For email services
 
-# API Documentation
-drf-yasg==1.21.7  # Swagger/OpenAPI
-
 # Utilities
 python-dateutil==2.8.2
 

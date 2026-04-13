@@ -297,11 +297,10 @@ def login_view(request):
         )
         return Response({'error': suspended_msg}, status=status.HTTP_403_FORBIDDEN)
 
+    # Auto-verify for demo (no email service configured)
     if not user.is_email_verified:
-        return Response(
-            {'error': 'Please verify your email before logging in'},
-            status=status.HTTP_403_FORBIDDEN
-        )
+        user.is_email_verified = True
+        user.save(update_fields=['is_email_verified'])
 
     # Generate tokens
     refresh = RefreshToken.for_user(user)

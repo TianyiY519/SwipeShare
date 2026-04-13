@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Fordham SwipeShare",
+    "slug": "fordham-swipeshare",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#800000",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "edu.fordham.swipeshare"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#800000"
+      },
+      "package": "edu.fordham.swipeshare"
+    },
+    "plugins": [
+      "expo-asset",
+      "@react-native-community/datetimepicker"
+    ]
+  }
+}

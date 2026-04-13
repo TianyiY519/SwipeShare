@@ -79,7 +79,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=config('DATABASE_URL', default='postgresql://postgres:admin123@localhost:5432/fordham_swipeshare'),
+        default=os.environ.get('DATABASE_URL', 'postgresql://postgres:admin123@localhost:5432/fordham_swipeshare'),
         conn_max_age=600,
         conn_health_checks=True,
     )

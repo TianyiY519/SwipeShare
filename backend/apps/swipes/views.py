@@ -2,7 +2,7 @@ from rest_framework import viewsets, status, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Sum
 from django.shortcuts import get_object_or_404
 
 from .models import SwipeListing, SwipeMatch
@@ -139,12 +139,18 @@ class SwipeListingViewSet(viewsets.ModelViewSet):
         """Get swipe statistics for current user"""
         user = request.user
 
+        available_donations = user.listings.filter(type='donation', status='open').aggregate(
+            total=Sum('quantity'))['total'] or 0
+        available_requests = user.listings.filter(type='request', status='open').aggregate(
+            total=Sum('quantity'))['total'] or 0
+        completed_donations = user.donations.filter(status='completed').count()
+        completed_requests = user.requests.filter(status='completed').count()
+
         stats = {
-            'total_donations': user.listings.filter(type='donation').count(),
-            'total_requests': user.listings.filter(type='request').count(),
+            'total_donations': available_donations,
+            'total_requests': available_requests,
             'active_listings': user.listings.filter(status='open').count(),
-            'completed_matches': user.donations.filter(status='completed').count() +
-                                user.requests.filter(status='completed').count(),
+            'completed_matches': completed_donations + completed_requests,
             'pending_matches': user.donations.filter(status='pending').count() +
                               user.requests.filter(status='pending').count(),
         }

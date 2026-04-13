@@ -581,8 +581,19 @@ const ListingDetailModal: React.FC<{ listing: SwipeListing; currentUser: User; o
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatText, setChatText] = useState('');
   const [convId, setConvId] = useState<number | null>(null);
+  const [editingQty, setEditingQty] = useState(false);
+  const [qty, setQty] = useState(listing.quantity);
   const isOwner = currentUser != null && String(listing.user.id) === String(currentUser.id);
   const campusLabel = (c: string) => c === 'RH' ? 'Rose Hill' : 'Lincoln Center';
+
+  const saveQty = async () => {
+    try {
+      await apiClient.patch(`/api/swipes/listings/${listing.id}/`, { quantity: qty });
+      listing.quantity = qty;
+      setEditingQty(false);
+      setMsg('Quantity updated!');
+    } catch { setMsg('Failed to update quantity'); }
+  };
 
   useEffect(() => {
     if (!isOwner && listing.type === 'donation') {
@@ -648,7 +659,19 @@ const ListingDetailModal: React.FC<{ listing: SwipeListing; currentUser: User; o
       <div className="detail-row">
         <Badge text={listing.type === 'donation' ? 'Donation' : 'Request'} color={listing.type === 'donation' ? '#2e7d32' : '#1565c0'} />
         <Badge text={campusLabel(listing.campus)} color="#555" />
-        <Badge text={`x${listing.quantity}`} color="#800000" />
+        {isOwner && editingQty ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <input type="number" min="0" value={qty} onChange={(e) => setQty(Number(e.target.value))}
+              style={{ width: 50, padding: '2px 6px', borderRadius: 6, border: '1px solid #ccc', fontSize: 13 }} />
+            <button onClick={saveQty} style={{ padding: '2px 8px', background: '#800000', color: '#fff', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Save</button>
+            <button onClick={() => { setEditingQty(false); setQty(listing.quantity); }} style={{ padding: '2px 8px', background: '#eee', border: 'none', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+          </span>
+        ) : (
+          <Badge text={`x${listing.quantity}`} color="#800000" />
+        )}
+        {isOwner && !editingQty && (
+          <span onClick={() => setEditingQty(true)} style={{ cursor: 'pointer', fontSize: 12, color: '#800000', textDecoration: 'underline' }}>Edit</span>
+        )}
       </div>
       <div className="detail-section">
         <p><strong>Posted by:</strong> {listing.user.full_name}</p>
@@ -2126,7 +2149,7 @@ const HomeScreen: React.FC<{ onNavigate: (tab: Tab) => void }> = ({ onNavigate }
           <div className="stats-row">
             <div className="stat stat-clickable" onClick={() => setActivityView('donated')}>
               <div className="stat-number">{stats?.swipes?.total_donations ?? 0}</div>
-              <div className="stat-label">Donated</div>
+              <div className="stat-label">Available Donations</div>
             </div>
             <div className="stat stat-clickable" onClick={() => setActivityView('requested')}>
               <div className="stat-number">{stats?.swipes?.total_requests ?? 0}</div>
@@ -2134,7 +2157,7 @@ const HomeScreen: React.FC<{ onNavigate: (tab: Tab) => void }> = ({ onNavigate }
             </div>
             <div className="stat stat-clickable" onClick={() => setActivityView('completed')}>
               <div className="stat-number">{stats?.swipes?.completed_matches ?? 0}</div>
-              <div className="stat-label">Completed</div>
+              <div className="stat-label">Completed Shares</div>
             </div>
           </div>
           <div className="reliability-badge">⭐ Reliability: {user?.reliability_score ?? 100}</div>

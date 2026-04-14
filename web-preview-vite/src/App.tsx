@@ -2028,7 +2028,20 @@ const MessagesScreen: React.FC<{ openConvId?: number; onDeepLinkHandled?: () => 
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<any>(null);
+  const [newMsgCount, setNewMsgCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  const isNearBottom = () => {
+    const el = chatContainerRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setNewMsgCount(0);
+  };
 
   useEffect(() => {
     loadConvs();
@@ -2042,15 +2055,19 @@ const MessagesScreen: React.FC<{ openConvId?: number; onDeepLinkHandled?: () => 
     const interval = setInterval(async () => {
       try {
         const res = await apiClient.get(`/api/messaging/conversations/${activeConv.id}/messages/`);
-        setMessages(res.data);
+        const newMsgs = res.data;
+        const added = newMsgs.length - messages.length;
+        if (added > 0 && !isNearBottom()) {
+          setNewMsgCount((prev) => prev + added);
+        } else if (added > 0) {
+          setNewMsgCount(0);
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+        }
+        setMessages(newMsgs);
       } catch {}
     }, 3000);
     return () => clearInterval(interval);
-  }, [activeConv]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [activeConv, messages.length]);
 
   // Auto-open conversation from deep link
   useEffect(() => {
@@ -2072,11 +2089,13 @@ const MessagesScreen: React.FC<{ openConvId?: number; onDeepLinkHandled?: () => 
 
   const openConv = async (conv: any) => {
     setActiveConv(conv);
+    setNewMsgCount(0);
     try {
       const res = await apiClient.get(`/api/messaging/conversations/${conv.id}/messages/`);
       setMessages(res.data);
       // Update unread count locally
       setConvs((prev) => prev.map((c) => c.id === conv.id ? { ...c, unread_count: 0 } : c));
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 50);
     } catch {}
   };
 
@@ -2090,8 +2109,10 @@ const MessagesScreen: React.FC<{ openConvId?: number; onDeepLinkHandled?: () => 
       setMessages((prev) => [...prev, res.data]);
       setText('');
       setReplyTo(null);
+      setNewMsgCount(0);
       // Update last message in convs list
       setConvs((prev) => prev.map((c) => c.id === activeConv.id ? { ...c, last_message: { text: res.data.text, author_name: res.data.author_name, created_at: res.data.created_at } } : c));
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     } catch {} finally { setSending(false); }
   };
 
@@ -2184,7 +2205,8 @@ const MessagesScreen: React.FC<{ openConvId?: number; onDeepLinkHandled?: () => 
               {activeConv.listing_type ? `${activeConv.listing_type === 'donation' ? 'Donation' : 'Request'} · ${activeConv.listing_date}` : 'Direct Message'}
             </span>
           </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: 16, background: '#fafafa' }}>
+          <div ref={chatContainerRef} style={{ flex: 1, overflowY: 'auto', padding: 16, background: '#fafafa', position: 'relative' }}
+            onScroll={() => { if (isNearBottom()) setNewMsgCount(0); }}>
             {messages.length === 0 ? (
               <div style={{ textAlign: 'center', color: '#999', padding: 40 }}>No messages yet</div>
             ) : messages.map((m: any) => (
@@ -2218,6 +2240,16 @@ const MessagesScreen: React.FC<{ openConvId?: number; onDeepLinkHandled?: () => 
               </div>
             ))}
             <div ref={messagesEndRef} />
+            {newMsgCount > 0 && (
+              <div onClick={scrollToBottom} style={{
+                position: 'sticky', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+                background: '#800000', color: '#fff', borderRadius: 20, padding: '6px 16px',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer', width: 'fit-content', margin: '0 auto',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)', textAlign: 'center',
+              }}>
+                ↓ {newMsgCount} new message{newMsgCount > 1 ? 's' : ''}
+              </div>
+            )}
           </div>
           <div style={{ borderTop: '1px solid #eee', background: '#fff' }}>
             {replyTo && (

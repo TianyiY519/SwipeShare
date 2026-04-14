@@ -2,7 +2,7 @@
 
 A mobile campus platform for Fordham University students to donate/request meal swipes and engage in campus community discussions.
 
-## 🏗️ Architecture
+## Architecture
 
 **Hybrid Backend:**
 - **Django + PostgreSQL**: Main API, authentication, database, admin panel
@@ -11,7 +11,7 @@ A mobile campus platform for Fordham University students to donate/request meal 
 **Frontend:**
 - **React Native + TypeScript**: Cross-platform mobile app (iOS & Android)
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 FordhamSwipeShare/
@@ -34,7 +34,7 @@ FordhamSwipeShare/
         └── components/      # Reusable components
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -75,38 +75,38 @@ npm run android
 npm run ios
 ```
 
-## 📚 Documentation
+## Documentation
 
 - **[Architecture Overview](./ARCHITECTURE.md)** - System design and data flow
 - **[Django Setup Guide](./backend/DJANGO_SETUP.md)** - Backend setup instructions
 - **[Firebase Setup Guide](./FIREBASE_SETUP_GUIDE.md)** - Firebase configuration (messaging only)
 
-## ✨ Features
+## Features
 
 ### Meal Swipe Exchange
-- 🍽️ Donate or request unused meal swipes
-- 📍 Filter by campus (Rose Hill / Lincoln Center)
-- 🤝 Smart matching between donors and requesters
-- ✅ Confirmation system with reliability scoring
+- Donate or request unused meal swipes
+- Filter by campus (Rose Hill / Lincoln Center)
+- Smart matching between donors and requesters
+- Confirmation system with reliability scoring
 
 ### Campus Forum
-- 💬 Discussion boards for housing, marketplace, rides, events
-- 📷 Image uploads for posts
-- 💭 Commenting system
-- 👍 Like/engagement features
+- Discussion boards for housing, marketplace, rides, events
+- Image uploads for posts
+- Commenting system
+- Like/engagement features
 
 ### Real-time Messaging
-- 💬 In-app chat when matched for swipes
-- 🔔 Push notifications for new messages
-- ⚡ Real-time updates with Firebase
+- In-app chat when matched for swipes
+- Push notifications for new messages
+- Real-time updates with Firebase
 
 ### Moderation & Safety
-- 🚨 Report inappropriate content
-- 👮 Admin dashboard for content moderation
-- ✉️ Fordham email verification required
-- 🔒 Secure authentication with JWT
+- Report inappropriate content
+- Admin dashboard for content moderation
+- Fordham email verification required
+- Secure authentication with JWT
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Backend
 - **Django 5.0** - Web framework
@@ -122,7 +122,7 @@ npm run ios
 - **Axios** - HTTP client
 - **Firebase SDK** - Real-time messaging
 
-## 🔐 Security
+## Security
 
 - **Email Verification**: Only `@fordham.edu` emails allowed
 - **JWT Authentication**: Secure token-based auth
@@ -130,7 +130,7 @@ npm run ios
 - **Firebase Rules**: Conversation participants only
 - **Content Moderation**: Report and review system
 
-## 📱 API Endpoints
+## API Endpoints
 
 ### Authentication
 ```
@@ -165,7 +165,7 @@ GET    /api/reports/        # Admin only
 PUT    /api/reports/{id}/   # Admin only
 ```
 
-## 🧪 Development Workflow
+## Development Workflow
 
 1. **Start Django backend:**
    ```bash
@@ -185,7 +185,7 @@ PUT    /api/reports/{id}/   # Admin only
    - URL: http://127.0.0.1:8000/admin/
    - Login with superuser credentials
 
-## 📦 Deployment
+## Deployment
 
 ### Backend (Django)
 - **Recommended**: Railway, Render, or Heroku
@@ -198,24 +198,24 @@ PUT    /api/reports/{id}/   # Admin only
 - **iOS**: Apple App Store
 - **OTA Updates**: CodePush (optional)
 
-## 📄 License
+## License
 
 MIT License - Academic Capstone Project
 
-## 👥 Team
+## Team
 
 Fordham University Computer Science Capstone Project
 
 ---
 
-## 🔗 Quick Links
+## Quick Links
 
 - [Django Documentation](https://docs.djangoproject.com/)
 - [React Native Docs](https://reactnative.dev/)
 - [DRF Documentation](https://www.django-rest-framework.org/)
 - [Firebase Documentation](https://firebase.google.com/docs)
 
-## 📞 Support
+## Support
 
 For setup issues:
 1. Check the detailed setup guides in `/backend/DJANGO_SETUP.md`

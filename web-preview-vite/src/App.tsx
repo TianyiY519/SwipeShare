@@ -2203,16 +2203,21 @@ const HomeScreen: React.FC<{ onNavigate: (tab: Tab) => void }> = ({ onNavigate }
   const [userStats, setUserStats] = useState<any>(null);
 
   useEffect(() => {
-    Promise.all([
-      apiClient.get('/api/swipes/listings/stats/'),
-      apiClient.get('/api/forum/posts/stats/'),
-      apiClient.get('/api/auth/whats-new/'),
-      apiClient.get('/api/auth/stats/'),
-    ]).then(([sw, po, nw, us]) => {
-      setStats({ swipes: sw.data, posts: po.data });
-      setNews(nw.data.items || []);
-      setUserStats(us.data);
-    }).catch(() => {});
+    const fetchAll = () => {
+      Promise.all([
+        apiClient.get('/api/swipes/listings/stats/'),
+        apiClient.get('/api/forum/posts/stats/'),
+        apiClient.get('/api/auth/whats-new/'),
+        apiClient.get('/api/auth/stats/'),
+      ]).then(([sw, po, nw, us]) => {
+        setStats({ swipes: sw.data, posts: po.data });
+        setNews(nw.data.items || []);
+        setUserStats(us.data);
+      }).catch(() => {});
+    };
+    fetchAll();
+    const interval = setInterval(fetchAll, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const campusLabel = (c: string) => c === 'RH' ? 'Rose Hill' : 'Lincoln Center';

@@ -8,6 +8,7 @@ class Conversation(models.Model):
         'swipes.SwipeListing',
         on_delete=models.CASCADE,
         related_name='conversations',
+        null=True, blank=True,
     )
     sender = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -23,7 +24,7 @@ class Conversation(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        unique_together = ['listing', 'sender']
+        unique_together = ['listing', 'sender', 'receiver']
         indexes = [
             models.Index(fields=['sender', '-created_at']),
             models.Index(fields=['receiver', '-created_at']),

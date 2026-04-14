@@ -184,6 +184,60 @@ const Modal: React.FC<{ title: string; onClose: () => void; children: React.Reac
   </div>
 );
 
+// ─── Message User Modal ──────────────────────────────────────────────────────
+
+const MessageUserModal: React.FC<{
+  targetUser: { id: number; full_name: string };
+  source?: string;
+  listingId?: number;
+  onClose: () => void;
+}> = ({ targetUser, source, listingId, onClose }) => {
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const send = async () => {
+    if (!text.trim() || sending) return;
+    try {
+      setSending(true);
+      const body: any = { text: text.trim() };
+      if (listingId) body.listing = listingId;
+      else body.receiver = targetUser.id;
+      if (source) body.source = source;
+      await apiClient.post('/api/messaging/conversations/', body);
+      setSent(true);
+    } catch {} finally { setSending(false); }
+  };
+
+  return (
+    <Modal title={`Message ${targetUser.full_name}`} onClose={onClose}>
+      {sent ? (
+        <div style={{ textAlign: 'center', padding: 20 }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>✓</div>
+          <p style={{ color: '#2e7d32', fontWeight: 600 }}>Message sent! Check your Messages tab.</p>
+          <Button onClick={onClose}>Close</Button>
+        </div>
+      ) : (
+        <>
+          {source && <p style={{ fontSize: 13, color: '#777', marginBottom: 8 }}>From: {source}</p>}
+          <textarea
+            className="input"
+            placeholder={`Say hi to ${targetUser.full_name}...`}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={3}
+            style={{ resize: 'vertical', width: '100%' }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          />
+          <Button onClick={send} disabled={sending || !text.trim()}>
+            {sending ? 'Sending...' : 'Send Message'}
+          </Button>
+        </>
+      )}
+    </Modal>
+  );
+};
+
 // ─── Report Modal ─────────────────────────────────────────────────────────────
 
 const REPORT_REASONS = [
@@ -365,6 +419,7 @@ const SwipesScreen: React.FC = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [selected, setSelected] = useState<SwipeListing | null>(null);
   const [error, setError] = useState('');
+  const [msgTarget, setMsgTarget] = useState<{ user: { id: number; full_name: string }; listingId: number } | null>(null);
 
   const load = async () => {
     try {
@@ -418,7 +473,10 @@ const SwipesScreen: React.FC = () => {
                 <span className="listing-qty">x{l.quantity}</span>
               </div>
               <div className="listing-info">
-                <strong>{l.user.full_name}</strong>
+                <strong
+                  style={{ cursor: 'pointer', color: '#800000', textDecoration: 'underline' }}
+                  onClick={(e) => { e.stopPropagation(); if (l.user.id !== user?.id) setMsgTarget({ user: l.user, listingId: l.id }); }}
+                >{l.user.full_name}</strong>
               </div>
               <div className="listing-date">{l.available_date}{l.available_time ? ` · ~${l.available_time}` : ''}</div>
               {l.notes && <div className="listing-notes">{l.notes}</div>}
@@ -432,6 +490,14 @@ const SwipesScreen: React.FC = () => {
       )}
       {selected && (
         <ListingDetailModal listing={selected} currentUser={user!} onClose={() => { setSelected(null); load(); }} />
+      )}
+      {msgTarget && (
+        <MessageUserModal
+          targetUser={msgTarget.user}
+          listingId={msgTarget.listingId}
+          source={`Swipe Listing #${msgTarget.listingId}`}
+          onClose={() => setMsgTarget(null)}
+        />
       )}
     </div>
   );
@@ -647,7 +713,7 @@ const ListingDetailModal: React.FC<{ listing: SwipeListing; currentUser: User; o
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Cancel this listing?')) return;
+    if (!window.confirm('Are you sure you want to delete this listing? This will count as a completed share.')) return;
     try {
       await apiClient.delete(`/api/swipes/listings/${listing.id}/`);
       onClose();
@@ -674,7 +740,10 @@ const ListingDetailModal: React.FC<{ listing: SwipeListing; currentUser: User; o
         )}
       </div>
       <div className="detail-section">
-        <p><strong>Posted by:</strong> {listing.user.full_name}</p>
+        <p><strong>Posted by:</strong> <span
+          style={{ cursor: !isOwner ? 'pointer' : 'default', color: !isOwner ? '#800000' : 'inherit', textDecoration: !isOwner ? 'underline' : 'none' }}
+          onClick={() => { if (!isOwner) setShowChat(true); openChat(); }}
+        >{listing.user.full_name}</span></p>
         <p><strong>Date:</strong> {listing.available_date}{listing.available_time ? ` · ~${listing.available_time}` : ''}</p>
         {listing.meeting_location && <p><strong>Meeting Location:</strong> {listing.meeting_location}</p>}
         {listing.notes && <p><strong>Notes:</strong> {listing.notes}</p>}
@@ -781,6 +850,7 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 ];
 
 const ForumScreen: React.FC = () => {
+  const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('all');
@@ -789,6 +859,7 @@ const ForumScreen: React.FC = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [selected, setSelected] = useState<Post | null>(null);
   const [error, setError] = useState('');
+  const [msgTarget, setMsgTarget] = useState<{ id: number; full_name: string } | null>(null);
 
   const sortPosts = (raw: Post[], mode: SortMode): Post[] => {
     const now = Date.now();
@@ -890,7 +961,10 @@ const ForumScreen: React.FC = () => {
               )}
               <p className="post-preview">{p.content.slice(0, 120)}{p.content.length > 120 ? '...' : ''}</p>
               <div className="post-footer">
-                <span className="post-author">by {p.user.full_name}</span>
+                <span className="post-author">by <span
+                  style={{ cursor: p.user.id !== user?.id ? 'pointer' : 'default', color: p.user.id !== user?.id ? '#800000' : 'inherit', textDecoration: p.user.id !== user?.id ? 'underline' : 'none' }}
+                  onClick={(e) => { e.stopPropagation(); if (p.user.id !== user?.id) setMsgTarget(p.user); }}
+                >{p.user.full_name}</span></span>
                 <div className="post-actions">
                   <button className={`action-btn ${p.user_has_liked ? 'liked' : ''}`} onClick={(e) => handleLike(p, e)}>
                     ♥ {p.likes_count}
@@ -905,6 +979,13 @@ const ForumScreen: React.FC = () => {
       </div>
       {showCreate && <CreatePostModal onClose={() => { setShowCreate(false); load(); }} />}
       {selected && <PostDetailModal post={selected} onClose={() => { setSelected(null); load(); }} />}
+      {msgTarget && (
+        <MessageUserModal
+          targetUser={msgTarget}
+          source={`Forum post`}
+          onClose={() => setMsgTarget(null)}
+        />
+      )}
     </div>
   );
 };
@@ -1052,7 +1133,8 @@ const CommentItem: React.FC<{
   postId: number;
   depth?: number;
   replyToName?: string;
-}> = ({ comment: c, allComments, setComments, postId, depth = 0, replyToName }) => {
+  onMessageUser?: (u: { id: number; full_name: string }) => void;
+}> = ({ comment: c, allComments, setComments, postId, depth = 0, replyToName, onMessageUser }) => {
   const { user } = useAuth();
   const [replyOpen, setReplyOpen] = useState(false);
   const [replyText, setReplyText] = useState('');
@@ -1099,7 +1181,10 @@ const CommentItem: React.FC<{
   return (
     <div className={`comment ${depth > 0 ? 'comment-reply' : ''}`}>
       <div className="comment-header">
-        <strong>{c.user.full_name}</strong>
+        <strong
+          style={{ cursor: onMessageUser && c.user.id !== user?.id ? 'pointer' : 'default', color: onMessageUser && c.user.id !== user?.id ? '#800000' : 'inherit', textDecoration: onMessageUser && c.user.id !== user?.id ? 'underline' : 'none' }}
+          onClick={() => { if (onMessageUser && c.user.id !== user?.id) onMessageUser(c.user); }}
+        >{c.user.full_name}</strong>
         {(() => {
           // Extract @[name] mention from content, or fall back to replyToName
           const mention = c.content?.match(/^@\[(.+?)\]\s?/)?.[1] || replyToName;
@@ -1164,7 +1249,7 @@ const CommentItem: React.FC<{
       {c.replies && c.replies.length > 0 && (depth > 0 || repliesVisible) && (
         <div className="replies-list">
           {c.replies.map((r) => (
-            <CommentItem key={r.id} comment={r} allComments={allComments} setComments={setComments} postId={postId} depth={depth + 1} replyToName={c.user.full_name} />
+            <CommentItem key={r.id} comment={r} allComments={allComments} setComments={setComments} postId={postId} depth={depth + 1} replyToName={c.user.full_name} onMessageUser={onMessageUser} />
           ))}
         </div>
       )}
@@ -1206,6 +1291,7 @@ const PostDetailModal: React.FC<{ post: Post; onClose: () => void }> = ({ post: 
   const commentImageRef = useRef<string | null>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
   const isOwner = post.can_edit === true;
+  const [msgTarget, setMsgTarget] = useState<{ id: number; full_name: string } | null>(null);
 
   useEffect(() => {
     // Trigger view count
@@ -1246,7 +1332,10 @@ const PostDetailModal: React.FC<{ post: Post; onClose: () => void }> = ({ post: 
     <Modal title="Post" onClose={onClose}>
       <Badge text={catLabel(post.category)} color="#555" />
       <h2 className="detail-post-title">{post.title}</h2>
-      <p className="detail-post-meta">by {post.user.full_name} · {new Date(post.created_at).toLocaleDateString()}</p>
+      <p className="detail-post-meta">by <span
+        style={{ cursor: post.user.id !== user?.id ? 'pointer' : 'default', color: post.user.id !== user?.id ? '#800000' : 'inherit', textDecoration: post.user.id !== user?.id ? 'underline' : 'none' }}
+        onClick={() => { if (post.user.id !== user?.id) setMsgTarget(post.user); }}
+      >{post.user.full_name}</span> · {new Date(post.created_at).toLocaleDateString()}</p>
       {post.tags && post.tags.length > 0 && (
         <div className="tag-list">{post.tags.map((t) => <span key={t} className="tag">#{t}</span>)}</div>
       )}
@@ -1279,7 +1368,7 @@ const PostDetailModal: React.FC<{ post: Post; onClose: () => void }> = ({ post: 
         <h4 className="comments-title">Comments ({totalComments})</h4>
         {comments.length === 0 && <p className="empty-state small">No comments yet. Be the first!</p>}
         {comments.map((c) => (
-          <CommentItem key={c.id} comment={c} allComments={comments} setComments={setComments} postId={post.id} />
+          <CommentItem key={c.id} comment={c} allComments={comments} setComments={setComments} postId={post.id} onMessageUser={setMsgTarget} />
         ))}
         <div className="comment-input-row">
           <input
@@ -1313,6 +1402,13 @@ const PostDetailModal: React.FC<{ post: Post; onClose: () => void }> = ({ post: 
           </div>
         )}
       </div>
+      {msgTarget && (
+        <MessageUserModal
+          targetUser={msgTarget}
+          source={`Forum: "${post.title}"`}
+          onClose={() => setMsgTarget(null)}
+        />
+      )}
     </Modal>
   );
 };
@@ -2038,7 +2134,7 @@ const MessagesScreen: React.FC = () => {
                   {conv.last_message?.text || 'No messages yet'}
                 </div>
                 <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
-                  {conv.listing_type === 'donation' ? 'Donation' : 'Request'} · {conv.listing_date}
+                  {conv.listing_type ? `${conv.listing_type === 'donation' ? 'Donation' : 'Request'} · ${conv.listing_date}` : 'Direct Message'}
                   {conv.last_message?.created_at && ` · ${timeAgo(conv.last_message.created_at)}`}
                 </div>
               </div>
@@ -2059,7 +2155,7 @@ const MessagesScreen: React.FC = () => {
             <span onClick={() => setActiveConv(null)} style={{ cursor: 'pointer', fontSize: 18, color: '#800000' }}>←</span>
             {otherName(activeConv)}
             <span style={{ fontWeight: 400, fontSize: 12, color: '#999' }}>
-              {activeConv.listing_type === 'donation' ? 'Donation' : 'Request'} · {activeConv.listing_date}
+              {activeConv.listing_type ? `${activeConv.listing_type === 'donation' ? 'Donation' : 'Request'} · ${activeConv.listing_date}` : 'Direct Message'}
             </span>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: 16, background: '#fafafa' }}>
@@ -2239,11 +2335,27 @@ const getTabFromHash = (): Tab => {
 const MainApp: React.FC = () => {
   const { user, logout } = useAuth();
   const [tab, setTab] = useState<Tab>(getTabFromHash());
+  const [unreadTotal, setUnreadTotal] = useState(0);
 
   useEffect(() => {
     const onHashChange = () => setTab(getTabFromHash());
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  // Poll for unread message count
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await apiClient.get('/api/messaging/conversations/');
+        const convs = res.data.results ?? res.data;
+        const total = convs.reduce((sum: number, c: any) => sum + (c.unread_count || 0), 0);
+        setUnreadTotal(total);
+      } catch {}
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const changeTab = (t: Tab) => {
@@ -2284,7 +2396,16 @@ const MainApp: React.FC = () => {
       <div className="tab-bar">
         {TAB_LABELS.map((t) => (
           <button key={t.key} className={`tab-btn ${tab === t.key ? 'active' : ''}`} onClick={() => changeTab(t.key)}>
-            <span className="tab-icon">{t.icon}</span>
+            <span className="tab-icon" style={{ position: 'relative' }}>
+              {t.icon}
+              {t.key === 'messages' && unreadTotal > 0 && (
+                <span style={{
+                  position: 'absolute', top: -6, right: -10, background: '#e53935', color: '#fff',
+                  borderRadius: 10, padding: '1px 5px', fontSize: 10, fontWeight: 700, minWidth: 16, textAlign: 'center',
+                  lineHeight: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                }}>{unreadTotal}</span>
+              )}
+            </span>
             <span className="tab-label">{t.label}</span>
           </button>
         ))}

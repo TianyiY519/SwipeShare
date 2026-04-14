@@ -19,9 +19,9 @@ class MessageSerializer(serializers.ModelSerializer):
 class ConversationSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source='sender.full_name', read_only=True)
     receiver_name = serializers.CharField(source='receiver.full_name', read_only=True)
-    listing_type = serializers.CharField(source='listing.type', read_only=True)
-    listing_campus = serializers.CharField(source='listing.campus', read_only=True)
-    listing_date = serializers.DateField(source='listing.available_date', read_only=True)
+    listing_type = serializers.CharField(source='listing.type', read_only=True, default=None)
+    listing_campus = serializers.CharField(source='listing.campus', read_only=True, default=None)
+    listing_date = serializers.DateField(source='listing.available_date', read_only=True, default=None)
     last_message = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
 

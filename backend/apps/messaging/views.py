@@ -82,7 +82,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
         conv = self.get_object()
         # Mark messages from the other person as read
         conv.messages.exclude(author=request.user).filter(is_read=False).update(is_read=True)
-        msgs = conv.messages.select_related('author').all()
+        msgs = conv.messages.select_related('author', 'reply_to', 'reply_to__author').all()
         serializer = MessageSerializer(msgs, many=True, context={'request': request})
         return Response(serializer.data)
 
@@ -100,6 +100,11 @@ class ConversationViewSet(viewsets.ModelViewSet):
         if not text:
             return Response({'detail': 'text is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        msg = Message.objects.create(conversation=conv, author=request.user, text=text)
+        reply_to_id = request.data.get('reply_to')
+        reply_to = None
+        if reply_to_id:
+            reply_to = conv.messages.filter(id=reply_to_id).first()
+
+        msg = Message.objects.create(conversation=conv, author=request.user, text=text, reply_to=reply_to)
         serializer = MessageSerializer(msg, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)

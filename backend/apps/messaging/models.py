@@ -46,6 +46,12 @@ class Message(models.Model):
         on_delete=models.CASCADE,
         related_name='messages',
     )
+    reply_to = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='replies',
+    )
     text = models.TextField()
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

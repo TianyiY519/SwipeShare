@@ -5,15 +5,25 @@ from .models import Conversation, Message
 class MessageSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source='author.full_name', read_only=True)
     is_mine = serializers.SerializerMethodField()
+    reply_to_data = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
-        fields = ['id', 'conversation', 'author', 'author_name', 'text', 'is_read', 'is_mine', 'created_at']
+        fields = ['id', 'conversation', 'author', 'author_name', 'text', 'reply_to', 'reply_to_data', 'is_read', 'is_mine', 'created_at']
         read_only_fields = ['id', 'author', 'author_name', 'is_read', 'is_mine', 'created_at']
 
     def get_is_mine(self, obj):
         request = self.context.get('request')
         return request and obj.author_id == request.user.id
+
+    def get_reply_to_data(self, obj):
+        if obj.reply_to:
+            return {
+                'id': obj.reply_to.id,
+                'text': obj.reply_to.text[:80],
+                'author_name': obj.reply_to.author.full_name,
+            }
+        return None
 
 
 class ConversationSerializer(serializers.ModelSerializer):

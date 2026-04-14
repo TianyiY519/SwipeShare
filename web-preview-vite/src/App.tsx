@@ -849,7 +849,7 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: 'rising', label: 'Rising' },
 ];
 
-const ForumScreen: React.FC = () => {
+const ForumScreen: React.FC<{ openPostId?: number; onDeepLinkHandled?: () => void }> = ({ openPostId, onDeepLinkHandled }) => {
   const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -905,6 +905,17 @@ const ForumScreen: React.FC = () => {
   };
 
   useEffect(() => { load(); }, [category, sort, search]);
+
+  // Auto-open post from deep link
+  useEffect(() => {
+    if (openPostId && posts.length > 0 && !selected) {
+      const target = posts.find((p) => p.id === openPostId);
+      if (target) {
+        setSelected(target);
+        onDeepLinkHandled?.();
+      }
+    }
+  }, [openPostId, posts]);
 
   const handleLike = async (post: Post, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -2008,7 +2019,7 @@ const AdminActions: React.FC = () => {
 
 // ─── Messages Screen ──────────────────────────────────────────────────────────
 
-const MessagesScreen: React.FC = () => {
+const MessagesScreen: React.FC<{ openConvId?: number; onDeepLinkHandled?: () => void }> = ({ openConvId, onDeepLinkHandled }) => {
   const { user } = useAuth();
   const [convs, setConvs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2016,6 +2027,7 @@ const MessagesScreen: React.FC = () => {
   const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [replyTo, setReplyTo] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -2040,6 +2052,17 @@ const MessagesScreen: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Auto-open conversation from deep link
+  useEffect(() => {
+    if (openConvId && convs.length > 0 && !activeConv) {
+      const target = convs.find((c) => c.id === openConvId);
+      if (target) {
+        openConv(target);
+        onDeepLinkHandled?.();
+      }
+    }
+  }, [openConvId, convs]);
+
   const loadConvs = async () => {
     try {
       const res = await apiClient.get('/api/messaging/conversations/');
@@ -2061,9 +2084,12 @@ const MessagesScreen: React.FC = () => {
     if (!text.trim() || sending || !activeConv) return;
     try {
       setSending(true);
-      const res = await apiClient.post(`/api/messaging/conversations/${activeConv.id}/reply/`, { text: text.trim() });
+      const body: any = { text: text.trim() };
+      if (replyTo) body.reply_to = replyTo.id;
+      const res = await apiClient.post(`/api/messaging/conversations/${activeConv.id}/reply/`, body);
       setMessages((prev) => [...prev, res.data]);
       setText('');
+      setReplyTo(null);
       // Update last message in convs list
       setConvs((prev) => prev.map((c) => c.id === activeConv.id ? { ...c, last_message: { text: res.data.text, author_name: res.data.author_name, created_at: res.data.created_at } } : c));
     } catch {} finally { setSending(false); }
@@ -2163,11 +2189,29 @@ const MessagesScreen: React.FC = () => {
               <div style={{ textAlign: 'center', color: '#999', padding: 40 }}>No messages yet</div>
             ) : messages.map((m: any) => (
               <div key={m.id} style={{ marginBottom: 10, textAlign: m.is_mine ? 'right' : 'left' }}>
-                <div style={{
-                  display: 'inline-block', padding: '9px 14px', borderRadius: 14, maxWidth: '70%', fontSize: 14, lineHeight: '20px',
-                  background: m.is_mine ? '#800000' : '#e8e8e8', color: m.is_mine ? '#fff' : '#333',
-                  borderBottomRightRadius: m.is_mine ? 4 : 14, borderBottomLeftRadius: m.is_mine ? 14 : 4,
-                }}>{m.text}</div>
+                {m.reply_to_data && (
+                  <div style={{
+                    display: 'inline-block', maxWidth: '70%', padding: '4px 10px', borderRadius: 8, marginBottom: 2,
+                    background: m.is_mine ? 'rgba(255,255,255,0.15)' : '#d5d5d5', fontSize: 12, color: '#666',
+                    borderLeft: '3px solid #800000', textAlign: 'left',
+                  }}>
+                    <div style={{ fontWeight: 600, fontSize: 11, color: '#800000' }}>{m.reply_to_data.author_name}</div>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.reply_to_data.text}</div>
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: m.is_mine ? 'flex-end' : 'flex-start' }}>
+                  {!m.is_mine && (
+                    <span onClick={() => setReplyTo(m)} style={{ cursor: 'pointer', fontSize: 14, color: '#aaa', padding: '2px 4px' }} title="Quote reply">↩</span>
+                  )}
+                  <div style={{
+                    display: 'inline-block', padding: '9px 14px', borderRadius: 14, maxWidth: '70%', fontSize: 14, lineHeight: '20px',
+                    background: m.is_mine ? '#800000' : '#e8e8e8', color: m.is_mine ? '#fff' : '#333',
+                    borderBottomRightRadius: m.is_mine ? 4 : 14, borderBottomLeftRadius: m.is_mine ? 14 : 4,
+                  }}>{m.text}</div>
+                  {m.is_mine && (
+                    <span onClick={() => setReplyTo(m)} style={{ cursor: 'pointer', fontSize: 14, color: '#aaa', padding: '2px 4px' }} title="Quote reply">↩</span>
+                  )}
+                </div>
                 <div style={{ fontSize: 11, color: '#999', marginTop: 3 }}>
                   {m.author_name} · {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
@@ -2175,14 +2219,25 @@ const MessagesScreen: React.FC = () => {
             ))}
             <div ref={messagesEndRef} />
           </div>
-          <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: '1px solid #eee', background: '#fff' }}>
-            <input className="input" style={{ flex: 1, margin: 0 }} placeholder="Type a message..."
-              value={text} onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && sendReply()} />
-            <button onClick={sendReply} disabled={sending || !text.trim()} style={{
-              padding: '8px 16px', background: text.trim() ? '#800000' : '#ccc', color: '#fff', border: 'none',
-              borderRadius: 8, cursor: text.trim() ? 'pointer' : 'default', fontSize: 13, fontWeight: 600,
-            }}>Send</button>
+          <div style={{ borderTop: '1px solid #eee', background: '#fff' }}>
+            {replyTo && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: '#f5f0f0', borderBottom: '1px solid #eee' }}>
+                <div style={{ flex: 1, borderLeft: '3px solid #800000', paddingLeft: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#800000' }}>{replyTo.author_name}</div>
+                  <div style={{ fontSize: 12, color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{replyTo.text}</div>
+                </div>
+                <span onClick={() => setReplyTo(null)} style={{ cursor: 'pointer', color: '#999', fontSize: 16, padding: 4 }}>✕</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, padding: 12 }}>
+              <input className="input" style={{ flex: 1, margin: 0 }} placeholder={replyTo ? `Reply to ${replyTo.author_name}...` : "Type a message..."}
+                value={text} onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && sendReply()} />
+              <button onClick={sendReply} disabled={sending || !text.trim()} style={{
+                padding: '8px 16px', background: text.trim() ? '#800000' : '#ccc', color: '#fff', border: 'none',
+                borderRadius: 8, cursor: text.trim() ? 'pointer' : 'default', fontSize: 13, fontWeight: 600,
+              }}>Send</button>
+            </div>
           </div>
         </div>
       )}
@@ -2194,7 +2249,7 @@ const MessagesScreen: React.FC = () => {
 
 type Tab = 'home' | 'swipes' | 'forum' | 'messages' | 'profile' | 'admin';
 
-const HomeScreen: React.FC<{ onNavigate: (tab: Tab) => void }> = ({ onNavigate }) => {
+const HomeScreen: React.FC<{ onNavigate: (tab: Tab, link?: { type: 'conversation' | 'post'; id: number }) => void }> = ({ onNavigate }) => {
   const { user } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [activityView, setActivityView] = useState<ActivityView | null>(null);
@@ -2282,8 +2337,8 @@ const HomeScreen: React.FC<{ onNavigate: (tab: Tab) => void }> = ({ onNavigate }
                 const mins = Math.floor(diff / 60000);
                 const timeAgo = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : mins < 1440 ? `${Math.floor(mins / 60)}h ago` : `${Math.floor(mins / 1440)}d ago`;
                 const handleClick = () => {
-                  if (item.type === 'message') onNavigate('messages');
-                  else if (item.type === 'comment' || item.type === 'like') onNavigate('forum');
+                  if (item.type === 'message') onNavigate('messages', { type: 'conversation', id: item.conversation_id });
+                  else if (item.type === 'comment' || item.type === 'like') onNavigate('forum', { type: 'post', id: item.post_id });
                 };
                 return (
                   <div key={i} onClick={handleClick} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', padding: '6px 4px', borderRadius: 8 }}
@@ -2341,6 +2396,7 @@ const MainApp: React.FC = () => {
   const { user, logout } = useAuth();
   const [tab, setTab] = useState<Tab>(getTabFromHash());
   const [unreadTotal, setUnreadTotal] = useState(0);
+  const [deepLink, setDeepLink] = useState<{ type: 'conversation' | 'post'; id: number } | null>(null);
 
   useEffect(() => {
     const onHashChange = () => setTab(getTabFromHash());
@@ -2386,13 +2442,13 @@ const MainApp: React.FC = () => {
 
       {tab === 'messages' ? (
         <div style={{ flex: 1, overflow: 'hidden', marginBottom: 52 }}>
-          <MessagesScreen />
+          <MessagesScreen openConvId={deepLink?.type === 'conversation' ? deepLink.id : undefined} onDeepLinkHandled={() => setDeepLink(null)} />
         </div>
       ) : (
         <div className="main-content">
-          {tab === 'home' && <HomeScreen onNavigate={changeTab} />}
+          {tab === 'home' && <HomeScreen onNavigate={(t, link) => { setDeepLink(link ?? null); changeTab(t); }} />}
           {tab === 'swipes' && <SwipesScreen />}
-          {tab === 'forum' && <ForumScreen />}
+          {tab === 'forum' && <ForumScreen openPostId={deepLink?.type === 'post' ? deepLink.id : undefined} onDeepLinkHandled={() => setDeepLink(null)} />}
           {tab === 'profile' && <ProfileScreen />}
           {tab === 'admin' && user?.is_staff && <AdminScreen />}
         </div>

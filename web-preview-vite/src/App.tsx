@@ -410,7 +410,7 @@ interface SwipeListing {
   created_at: string;
 }
 
-const SwipesScreen: React.FC = () => {
+const SwipesScreen: React.FC<{ openSwipeId?: number; onDeepLinkHandled?: () => void }> = ({ openSwipeId, onDeepLinkHandled }) => {
   const { user } = useAuth();
   const [listings, setListings] = useState<SwipeListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -434,6 +434,22 @@ const SwipesScreen: React.FC = () => {
   };
 
   useEffect(() => { load(); }, [filter, campusFilter]);
+
+  // Auto-open listing from deep link (admin Report → reported swipe)
+  useEffect(() => {
+    if (!openSwipeId) return;
+    (async () => {
+      // First try to find it in current list
+      const local = listings.find((l) => l.id === openSwipeId);
+      if (local) { setSelected(local); onDeepLinkHandled?.(); return; }
+      // Otherwise fetch directly (admin can view inactive listings)
+      try {
+        const res = await apiClient.get(`/api/swipes/listings/${openSwipeId}/`);
+        setSelected(res.data);
+        onDeepLinkHandled?.();
+      } catch {}
+    })();
+  }, [openSwipeId, listings]);
 
   const campusLabel = (c: string) => c === 'RH' ? 'Rose Hill' : 'Lincoln Center';
 
@@ -474,7 +490,7 @@ const SwipesScreen: React.FC = () => {
               </div>
               <div className="listing-info">
                 <strong
-                  style={{ cursor: 'pointer', color: '#800000', textDecoration: 'underline' }}
+                  style={{ cursor: l.user.id !== user?.id ? 'pointer' : 'default' }}
                   onClick={(e) => { e.stopPropagation(); if (l.user.id !== user?.id) setMsgTarget({ user: l.user, listingId: l.id }); }}
                 >{l.user.full_name}</strong>
               </div>
@@ -661,8 +677,8 @@ const ListingDetailModal: React.FC<{ listing: SwipeListing; currentUser: User; o
       </div>
       <div className="detail-section">
         <p><strong>Posted by:</strong> <span
-          style={{ cursor: !isOwner ? 'pointer' : 'default', color: !isOwner ? '#800000' : 'inherit', textDecoration: !isOwner ? 'underline' : 'none' }}
-          onClick={() => { if (!isOwner) setShowChat(true); openChat(); }}
+          style={{ cursor: !isOwner ? 'pointer' : 'default' }}
+          onClick={() => { if (!isOwner) { setShowChat(true); openChat(); } }}
         >{listing.user.full_name}</span></p>
         <p><strong>Date:</strong> {listing.available_date}{listing.available_time ? ` · ~${listing.available_time}` : ''}</p>
         {listing.meeting_location && <p><strong>Meeting Location:</strong> {listing.meeting_location}</p>}
@@ -773,7 +789,7 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
   { value: 'rising', label: 'Rising' },
 ];
 
-const ForumScreen: React.FC<{ openPostId?: number; onDeepLinkHandled?: () => void }> = ({ openPostId, onDeepLinkHandled }) => {
+const ForumScreen: React.FC<{ openPostId?: number; scrollToCommentId?: number; onDeepLinkHandled?: () => void }> = ({ openPostId, scrollToCommentId, onDeepLinkHandled }) => {
   const { user } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -897,7 +913,7 @@ const ForumScreen: React.FC<{ openPostId?: number; onDeepLinkHandled?: () => voi
               <p className="post-preview">{p.content.slice(0, 120)}{p.content.length > 120 ? '...' : ''}</p>
               <div className="post-footer">
                 <span className="post-author">by <span
-                  style={{ cursor: p.user.id !== user?.id ? 'pointer' : 'default', color: p.user.id !== user?.id ? '#800000' : 'inherit', textDecoration: p.user.id !== user?.id ? 'underline' : 'none' }}
+                  style={{ cursor: p.user.id !== user?.id ? 'pointer' : 'default' }}
                   onClick={(e) => { e.stopPropagation(); if (p.user.id !== user?.id) setMsgTarget(p.user); }}
                 >{p.user.full_name}</span></span>
                 <div className="post-actions">
@@ -913,7 +929,7 @@ const ForumScreen: React.FC<{ openPostId?: number; onDeepLinkHandled?: () => voi
         )}
       </div>
       {showCreate && <CreatePostModal onClose={() => { setShowCreate(false); load(); }} />}
-      {selected && <PostDetailModal post={selected} onClose={() => { setSelected(null); load(); }} />}
+      {selected && <PostDetailModal post={selected} scrollToCommentId={scrollToCommentId} onClose={() => { setSelected(null); load(); }} />}
       {msgTarget && (
         <MessageUserModal
           targetUser={msgTarget}
@@ -1114,10 +1130,10 @@ const CommentItem: React.FC<{
   };
 
   return (
-    <div className={`comment ${depth > 0 ? 'comment-reply' : ''}`}>
+    <div id={`comment-${c.id}`} className={`comment ${depth > 0 ? 'comment-reply' : ''}`}>
       <div className="comment-header">
         <strong
-          style={{ cursor: onMessageUser && c.user.id !== user?.id ? 'pointer' : 'default', color: onMessageUser && c.user.id !== user?.id ? '#800000' : 'inherit', textDecoration: onMessageUser && c.user.id !== user?.id ? 'underline' : 'none' }}
+          style={{ cursor: onMessageUser && c.user.id !== user?.id ? 'pointer' : 'default' }}
           onClick={() => { if (onMessageUser && c.user.id !== user?.id) onMessageUser(c.user); }}
         >{c.user.full_name}</strong>
         {(() => {
@@ -1213,7 +1229,7 @@ const addReply = (comments: Comment[], parentId: number, reply: Comment): Commen
       : { ...c, replies: c.replies ? addReply(c.replies, parentId, reply) : [] }
   );
 
-const PostDetailModal: React.FC<{ post: Post; onClose: () => void }> = ({ post: initialPost, onClose }) => {
+const PostDetailModal: React.FC<{ post: Post; scrollToCommentId?: number; onClose: () => void }> = ({ post: initialPost, scrollToCommentId, onClose }) => {
   const { user } = useAuth();
   const post = initialPost;
   const [comments, setComments] = useState<Comment[]>([]);
@@ -1235,6 +1251,20 @@ const PostDetailModal: React.FC<{ post: Post; onClose: () => void }> = ({ post: 
       .then((res) => setComments(res.data.results ?? res.data))
       .catch(() => {});
   }, []);
+
+  // Scroll to and highlight a specific comment (e.g. from admin Report)
+  useEffect(() => {
+    if (!scrollToCommentId || comments.length === 0) return;
+    setTimeout(() => {
+      const el = document.getElementById(`comment-${scrollToCommentId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.transition = 'background 0.5s';
+        el.style.background = '#fff3cd';
+        setTimeout(() => { el.style.background = ''; }, 2500);
+      }
+    }, 200);
+  }, [scrollToCommentId, comments]);
 
   const handleLike = async () => {
     try {
@@ -1268,7 +1298,7 @@ const PostDetailModal: React.FC<{ post: Post; onClose: () => void }> = ({ post: 
       <Badge text={catLabel(post.category)} color="#555" />
       <h2 className="detail-post-title">{post.title}</h2>
       <p className="detail-post-meta">by <span
-        style={{ cursor: post.user.id !== user?.id ? 'pointer' : 'default', color: post.user.id !== user?.id ? '#800000' : 'inherit', textDecoration: post.user.id !== user?.id ? 'underline' : 'none' }}
+        style={{ cursor: post.user.id !== user?.id ? 'pointer' : 'default' }}
         onClick={() => { if (post.user.id !== user?.id) setMsgTarget(post.user); }}
       >{post.user.full_name}</span> · {new Date(post.created_at).toLocaleDateString()}</p>
       {post.tags && post.tags.length > 0 && (
@@ -1752,6 +1782,25 @@ const ReportDetailModal: React.FC<{
         {report.description && <p><strong>Description:</strong> {report.description}</p>}
         {report.reviewed_by && <p><strong>Reviewed by:</strong> {report.reviewed_by.full_name}</p>}
       </div>
+      {(report.content_type === 'post' || report.content_type === 'swipe_listing' || report.content_type === 'comment') && (
+        <Button onClick={async () => {
+          if (report.content_type === 'comment') {
+            try {
+              const res = await apiClient.get(`/api/forum/comments/${report.content_id}/`);
+              (window as any).swipeshareGoTo?.({ type: 'post', id: res.data.post, scrollToCommentId: report.content_id });
+            } catch {
+              alert('Could not load that comment.');
+              return;
+            }
+          } else {
+            const target = report.content_type === 'post'
+              ? { type: 'post' as const, id: report.content_id }
+              : { type: 'swipe' as const, id: report.content_id };
+            (window as any).swipeshareGoTo?.(target);
+          }
+          onClose();
+        }} variant="outline">🔗 View Reported {report.content_type === 'post' ? 'Post' : report.content_type === 'comment' ? 'Comment' : 'Swipe Listing'}</Button>
+      )}
 
       {report.status === 'pending' || report.status === 'under_review' ? (
         <>
@@ -2352,7 +2401,7 @@ const MainApp: React.FC = () => {
   const { user, logout } = useAuth();
   const [tab, setTab] = useState<Tab>(getTabFromHash());
   const [unreadTotal, setUnreadTotal] = useState(0);
-  const [deepLink, setDeepLink] = useState<{ type: 'conversation' | 'post'; id: number } | null>(null);
+  const [deepLink, setDeepLink] = useState<{ type: 'conversation' | 'post' | 'swipe'; id: number; scrollToCommentId?: number } | null>(null);
 
   useEffect(() => {
     const onHashChange = () => setTab(getTabFromHash());
@@ -2380,6 +2429,22 @@ const MainApp: React.FC = () => {
     setTab(t);
   };
 
+  // Expose a global navigation helper so admin (and other deep-nested components) can jump to content
+  useEffect(() => {
+    (window as any).swipeshareGoTo = (target: { type: 'conversation' | 'post' | 'swipe'; id: number; scrollToCommentId?: number }) => {
+      if (target.type === 'conversation') {
+        setDeepLink({ type: 'conversation', id: target.id });
+        changeTab('messages');
+      } else if (target.type === 'post') {
+        setDeepLink({ type: 'post', id: target.id, scrollToCommentId: target.scrollToCommentId });
+        changeTab('forum');
+      } else if (target.type === 'swipe') {
+        setDeepLink({ type: 'swipe', id: target.id });
+        changeTab('swipes');
+      }
+    };
+  }, []);
+
   const TAB_LABELS: { key: Tab; label: string; icon: string }[] = [
     { key: 'home', label: 'Home', icon: '🏠' },
     { key: 'swipes', label: 'Swipes', icon: '🍽️' },
@@ -2403,8 +2468,8 @@ const MainApp: React.FC = () => {
       ) : (
         <div className="main-content">
           {tab === 'home' && <HomeScreen onNavigate={(t, link) => { setDeepLink(link ?? null); changeTab(t); }} />}
-          {tab === 'swipes' && <SwipesScreen />}
-          {tab === 'forum' && <ForumScreen openPostId={deepLink?.type === 'post' ? deepLink.id : undefined} onDeepLinkHandled={() => setDeepLink(null)} />}
+          {tab === 'swipes' && <SwipesScreen openSwipeId={deepLink?.type === 'swipe' ? deepLink.id : undefined} onDeepLinkHandled={() => setDeepLink(null)} />}
+          {tab === 'forum' && <ForumScreen openPostId={deepLink?.type === 'post' ? deepLink.id : undefined} scrollToCommentId={deepLink?.type === 'post' ? deepLink.scrollToCommentId : undefined} onDeepLinkHandled={() => setDeepLink(null)} />}
           {tab === 'profile' && <ProfileScreen />}
           {tab === 'admin' && user?.is_staff && <AdminScreen />}
         </div>

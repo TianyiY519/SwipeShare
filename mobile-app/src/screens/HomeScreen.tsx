@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
   ActivityIndicator,
@@ -44,6 +44,12 @@ export default function HomeScreen({ navigation }: any) {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // Auto-refresh every 5 seconds (real-time stats and notifications)
+  useEffect(() => {
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, [load]);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await load();
@@ -77,7 +83,7 @@ export default function HomeScreen({ navigation }: any) {
       <View style={s.statsRow}>
         <StatCard label="Donated" value={stats?.swipes_donated ?? user?.swipes_donated ?? 0} icon="heart" color="#2e7d32" />
         <StatCard label="Received" value={stats?.swipes_received ?? user?.swipes_received ?? 0} icon="restaurant" color="#1565c0" />
-        <StatCard label="Score" value={user?.reliability_score ?? '5.0'} icon="star" color="#f9a825" />
+        <StatCard label="Completed" value={(stats?.swipes_donated ?? user?.swipes_donated ?? 0) + (stats?.swipes_received ?? user?.swipes_received ?? 0)} icon="checkmark-circle" color="#7b1fa2" />
       </View>
 
       <Text style={s.section}>Quick Actions</Text>

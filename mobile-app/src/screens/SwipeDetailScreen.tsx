@@ -9,13 +9,23 @@ import api from '../api';
 import ReportModal from './ReportModal';
 
 export default function SwipeDetailScreen({ route, navigation }: any) {
-  const { listing } = route.params;
+  const { listing: paramListing, listingId } = route.params;
+  const [listing, setListing] = useState<any>(paramListing || null);
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [myRequests, setMyRequests] = useState<any[]>([]);
   const [showReport, setShowReport] = useState(false);
-  const isOwner = !!user && listing.user.id == user.id;
-  const isDonation = listing.type === 'donation';
+  const isOwner = !!user && listing && listing.user.id == user.id;
+  const isDonation = listing && listing.type === 'donation';
+
+  // If only listingId was passed (e.g. from admin Reports), fetch the listing
+  useEffect(() => {
+    if (!listing && listingId) {
+      api.get(`/api/swipes/listings/${listingId}/`)
+        .then((res) => setListing(res.data))
+        .catch(() => Alert.alert('Error', 'Could not load listing'));
+    }
+  }, [listingId]);
 
   // Chat state
   const [allConvs, setAllConvs] = useState<any[]>([]);   // owner: all convs on listing
@@ -25,7 +35,31 @@ export default function SwipeDetailScreen({ route, navigation }: any) {
   const [chatLoading, setChatLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
+  // Quantity edit state (owner only)
+  const [editingQty, setEditingQty] = useState(false);
+  const [qty, setQty] = useState(paramListing ? String(paramListing.quantity) : '1');
+  const [savingQty, setSavingQty] = useState(false);
+
+  // Sync qty state once listing loads
   useEffect(() => {
+    if (listing) setQty(String(listing.quantity));
+  }, [listing?.id]);
+
+  const saveQty = async () => {
+    const n = parseInt(qty);
+    if (!n || n < 1) { Alert.alert('Invalid', 'Quantity must be at least 1'); return; }
+    try {
+      setSavingQty(true);
+      await api.patch(`/api/swipes/listings/${listing.id}/`, { quantity: n });
+      listing.quantity = n;
+      setEditingQty(false);
+    } catch {
+      Alert.alert('Error', 'Failed to update quantity');
+    } finally { setSavingQty(false); }
+  };
+
+  useEffect(() => {
+    if (!listing) return;
     if (isDonation && !isOwner) {
       api.get('/api/swipes/listings/', { params: { type: 'request', active: 'true' } })
         .then((res) => {
@@ -34,10 +68,11 @@ export default function SwipeDetailScreen({ route, navigation }: any) {
         })
         .catch(() => {});
     }
-  }, []);
+  }, [listing?.id]);
 
   // Load existing conversations for this listing
   useEffect(() => {
+    if (!listing) return;
     api.get('/api/messaging/conversations/').then((res) => {
       const all = res.data.results || res.data;
       const listingConvs = all.filter((c: any) => c.listing === listing.id);
@@ -55,7 +90,7 @@ export default function SwipeDetailScreen({ route, navigation }: any) {
         }
       }
     }).catch(() => {}).finally(() => setChatLoading(false));
-  }, []);
+  }, [listing?.id]);
 
   const openConv = async (conv: any) => {
     setConversation(conv);
@@ -119,6 +154,10 @@ export default function SwipeDetailScreen({ route, navigation }: any) {
     ]);
   };
 
+  if (!listing) {
+    return <View style={s.container}><ActivityIndicator color="#800000" size="large" style={{ marginTop: 80 }} /></View>;
+  }
+
   const otherName = isOwner
     ? (conversation?.sender_name || 'Student')
     : listing.user.full_name;
@@ -134,7 +173,39 @@ export default function SwipeDetailScreen({ route, navigation }: any) {
         <View style={s.body}>
           <InfoRow icon="calendar" label="Date" value={listing.available_date} />
           {listing.available_time && <InfoRow icon="time" label="Around" value={`~${listing.available_time.slice(0, 5)}`} />}
-          <InfoRow icon="layers" label="Quantity" value={`${listing.quantity} swipe${listing.quantity !== 1 ? 's' : ''}`} />
+          {isOwner ? (
+            <View style={s.infoRow}>
+              <Ionicons name="layers" size={18} color="#800000" style={{ marginTop: 1 }} />
+              <View style={s.infoText}>
+                <Text style={s.infoLabel}>Quantity</Text>
+                {editingQty ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                    <TextInput
+                      style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4, width: 60, fontSize: 15 }}
+                      value={qty}
+                      onChangeText={setQty}
+                      keyboardType="number-pad"
+                    />
+                    <TouchableOpacity onPress={saveQty} disabled={savingQty} style={{ backgroundColor: '#800000', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6 }}>
+                      {savingQty ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '600' }}>Save</Text>}
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => { setEditingQty(false); setQty(String(listing.quantity)); }} style={{ paddingVertical: 6, paddingHorizontal: 12 }}>
+                      <Text style={{ color: '#888' }}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Text style={s.infoValue}>{listing.quantity} swipe{listing.quantity !== 1 ? 's' : ''}</Text>
+                    <TouchableOpacity onPress={() => setEditingQty(true)}>
+                      <Text style={{ color: '#800000', fontSize: 13, textDecorationLine: 'underline' }}>Edit</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </View>
+          ) : (
+            <InfoRow icon="layers" label="Quantity" value={`${listing.quantity} swipe${listing.quantity !== 1 ? 's' : ''}`} />
+          )}
           <InfoRow icon="location" label="Campus" value={listing.campus === 'RH' ? 'Rose Hill' : 'Lincoln Center'} />
           {listing.meeting_location && <InfoRow icon="navigate" label="Meet At" value={listing.meeting_location} />}
           {listing.notes && <InfoRow icon="document-text" label="Notes" value={listing.notes} />}

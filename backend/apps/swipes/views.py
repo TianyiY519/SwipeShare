@@ -66,9 +66,23 @@ class SwipeListingViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
     def perform_update(self, serializer):
-        """Only allow owner to update"""
-        if serializer.instance.user != self.request.user:
+        """Only allow owner to update; reduce in quantity counts as completed shares"""
+        instance = serializer.instance
+        if instance.user != self.request.user:
             raise permissions.PermissionDenied("You can only update your own listings")
+
+        old_quantity = instance.quantity
+        new_quantity = serializer.validated_data.get('quantity', old_quantity)
+        delta = old_quantity - new_quantity  # positive if decreased
+
+        if delta > 0:
+            user = instance.user
+            if instance.type == 'donation':
+                user.swipes_donated += delta
+            else:
+                user.swipes_received += delta
+            user.save(update_fields=['swipes_donated', 'swipes_received'])
+
         serializer.save()
 
     def perform_destroy(self, instance):

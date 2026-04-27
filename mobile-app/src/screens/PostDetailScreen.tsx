@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../AuthContext';
 import api from '../api';
+import { startChatWithUser } from '../startChat';
 import ReportModal from './ReportModal';
 
 interface CommentUser { id: number; full_name: string }
@@ -41,7 +42,7 @@ const CAT_LABELS: Record<string, string> = {
 };
 
 export default function PostDetailScreen({ route, navigation }: any) {
-  const { postId } = route.params;
+  const { postId, scrollToCommentId } = route.params;
   const { user } = useAuth();
   const [post, setPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -52,7 +53,22 @@ export default function PostDetailScreen({ route, navigation }: any) {
   const [commenting, setCommenting] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [reportTarget, setReportTarget] = useState<{ type: 'post' | 'comment'; id: number } | null>(null);
+  const [highlightCommentId, setHighlightCommentId] = useState<number | null>(null);
   const commentRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const commentLayouts = useRef<Record<number, number>>({});
+
+  useEffect(() => {
+    if (!scrollToCommentId || comments.length === 0) return;
+    setHighlightCommentId(scrollToCommentId);
+    setTimeout(() => {
+      const y = commentLayouts.current[scrollToCommentId];
+      if (y !== undefined && scrollRef.current) {
+        scrollRef.current.scrollTo({ y: Math.max(0, y - 80), animated: true });
+      }
+    }, 400);
+    setTimeout(() => setHighlightCommentId(null), 3000);
+  }, [scrollToCommentId, comments]);
 
   useEffect(() => {
     (async () => {
@@ -120,7 +136,7 @@ export default function PostDetailScreen({ route, navigation }: any) {
 
   return (
     <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView style={s.container}>
+      <ScrollView ref={scrollRef} style={s.container}>
         <View style={s.postCard}>
           <View style={s.metaRow}>
             <View style={s.catBadge}><Text style={s.catText}>{CAT_LABELS[post.category] || post.category}</Text></View>
@@ -128,7 +144,13 @@ export default function PostDetailScreen({ route, navigation }: any) {
           </View>
 
           <Text style={s.title}>{post.title}</Text>
-          <Text style={s.author}>by {post.user.full_name}</Text>
+          {post.user.id !== user?.id ? (
+            <TouchableOpacity onPress={() => startChatWithUser(navigation, post.user, `forum post "${post.title}"`)}>
+              <Text style={s.author}>by {post.user.full_name}</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={s.author}>by {post.user.full_name}</Text>
+          )}
 
           {post.tags?.length > 0 && (
             <View style={s.tagsRow}>
@@ -179,6 +201,8 @@ export default function PostDetailScreen({ route, navigation }: any) {
           {comments.length === 0 && <Text style={s.emptyComments}>No comments yet. Be the first!</Text>}
           {comments.map((c) => (
             <CommentItem key={c.id} comment={c} postId={postId} comments={comments} setComments={setComments} depth={0}
+              navigation={navigation} postTitle={post.title}
+              highlightId={highlightCommentId} commentLayouts={commentLayouts}
               onReport={(id) => { setReportTarget({ type: 'comment', id }); setShowReport(true); }} />
           ))}
         </View>
@@ -214,11 +238,16 @@ export default function PostDetailScreen({ route, navigation }: any) {
 }
 
 function CommentItem({
-  comment: c, postId, comments, setComments, depth, replyToName, onReport,
+  comment: c, postId, comments, setComments, depth, replyToName, onReport, navigation, postTitle,
+  highlightId, commentLayouts,
 }: {
   comment: Comment; postId: number; comments: Comment[];
   setComments: React.Dispatch<React.SetStateAction<Comment[]>>; depth: number; replyToName?: string;
   onReport?: (id: number) => void;
+  navigation?: any;
+  postTitle?: string;
+  highlightId?: number | null;
+  commentLayouts?: React.MutableRefObject<Record<number, number>>;
 }) {
   const { user } = useAuth();
   const [replyOpen, setReplyOpen] = useState(false);
@@ -259,9 +288,18 @@ function CommentItem({
   };
 
   return (
-    <View style={[s2.comment, depth > 0 && s2.reply]}>
+    <View
+      onLayout={(e) => { if (commentLayouts) commentLayouts.current[c.id] = e.nativeEvent.layout.y; }}
+      style={[s2.comment, depth > 0 && s2.reply, highlightId === c.id && { backgroundColor: '#fff3cd', borderRadius: 8, padding: 8 }]}
+    >
       <View style={s2.header}>
-        <Text style={s2.userName}>{c.user.full_name}</Text>
+        {navigation && c.user.id !== user?.id ? (
+          <TouchableOpacity onPress={() => startChatWithUser(navigation, c.user, postTitle ? `comment on "${postTitle}"` : 'forum comment')}>
+            <Text style={s2.userName}>{c.user.full_name}</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={s2.userName}>{c.user.full_name}</Text>
+        )}
         {mention && <Text style={s2.replyTo}>replied to {mention}</Text>}
         <Text style={s2.time}>{new Date(c.created_at).toLocaleDateString()}</Text>
       </View>
@@ -317,7 +355,9 @@ function CommentItem({
         <View style={s2.repliesList}>
           {c.replies.map((r) => (
             <CommentItem key={r.id} comment={r} postId={postId} comments={comments}
-              setComments={setComments} depth={depth + 1} replyToName={c.user.full_name} onReport={onReport} />
+              setComments={setComments} depth={depth + 1} replyToName={c.user.full_name} onReport={onReport}
+              navigation={navigation} postTitle={postTitle}
+              highlightId={highlightId} commentLayouts={commentLayouts} />
           ))}
         </View>
       )}
@@ -359,6 +399,7 @@ const s = StyleSheet.create({
   date: { fontSize: 12, color: '#999' },
   title: { fontSize: 22, fontWeight: 'bold', color: '#222', marginBottom: 4 },
   author: { fontSize: 13, color: '#888', marginBottom: 8 },
+  authorClickable: { color: '#800000', textDecorationLine: 'underline' },
   tagsRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   tag: { fontSize: 13, color: '#800000' },
   content: { fontSize: 16, color: '#333', lineHeight: 24 },

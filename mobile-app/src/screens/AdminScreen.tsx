@@ -4,6 +4,7 @@ import {
   Alert, RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import api from '../api';
 
 type AdminTab = 'dashboard' | 'reports' | 'users' | 'actions';
@@ -71,9 +72,41 @@ function StatCard({ label, value, color }: { label: string; value: number; color
 
 // ─── Reports ───
 function Reports() {
+  const navigation = useNavigation<any>();
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending');
+
+  const viewReportedContent = async (r: any) => {
+    try {
+      if (r.content_type === 'post') {
+        // Push ForumList first so the back button works
+        navigation.navigate('Forum', { screen: 'ForumList' });
+        setTimeout(() => {
+          navigation.navigate('Forum', { screen: 'PostDetail', params: { postId: r.content_id } });
+        }, 100);
+      } else if (r.content_type === 'swipe_listing') {
+        navigation.navigate('Swipes', { screen: 'SwipesList' });
+        setTimeout(() => {
+          navigation.navigate('Swipes', { screen: 'SwipeDetail', params: { listingId: r.content_id } });
+        }, 100);
+      } else if (r.content_type === 'comment') {
+        // Fetch the comment to find its post
+        const res = await api.get(`/api/forum/comments/${r.content_id}/`);
+        navigation.navigate('Forum', { screen: 'ForumList' });
+        setTimeout(() => {
+          navigation.navigate('Forum', {
+            screen: 'PostDetail',
+            params: { postId: res.data.post, scrollToCommentId: r.content_id },
+          });
+        }, 100);
+      } else {
+        Alert.alert('Cannot view', `Type "${r.content_type}" is not viewable directly.`);
+      }
+    } catch {
+      Alert.alert('Error', 'Could not load that content.');
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -117,16 +150,23 @@ function Reports() {
           </View>
           <Text style={s.cardMeta}>By {r.reporter?.full_name ?? 'Unknown'} · {new Date(r.created_at).toLocaleDateString()}</Text>
           {r.description ? <Text style={s.cardDesc} numberOfLines={2}>{r.description}</Text> : null}
-          {(r.status === 'pending' || r.status === 'under_review') && (
-            <View style={s.cardActions}>
-              <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#2e7d32' }]} onPress={() => handleResolve(r.id)}>
-                <Text style={s.actionBtnText}>Resolve</Text>
+          <View style={s.cardActions}>
+            {(r.content_type === 'post' || r.content_type === 'swipe_listing' || r.content_type === 'comment') && (
+              <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#1565c0' }]} onPress={() => viewReportedContent(r)}>
+                <Text style={s.actionBtnText}>View</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#888' }]} onPress={() => handleDismiss(r.id)}>
-                <Text style={s.actionBtnText}>Dismiss</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+            )}
+            {(r.status === 'pending' || r.status === 'under_review') && (
+              <>
+                <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#2e7d32' }]} onPress={() => handleResolve(r.id)}>
+                  <Text style={s.actionBtnText}>Resolve</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.actionBtn, { backgroundColor: '#888' }]} onPress={() => handleDismiss(r.id)}>
+                  <Text style={s.actionBtnText}>Dismiss</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         </View>
       ))}
     </ScrollView>

@@ -1,11 +1,8 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// For web/iOS simulator: localhost
-// For Android emulator: 10.0.2.2
-// For physical device: use your computer's local IP (e.g., 192.168.1.xxx)
-import { Platform } from 'react-native';
-export const API_BASE = Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000';
+// Production backend on Railway
+export const API_BASE = 'https://swipeshare-production.up.railway.app';
 
 const api = axios.create({
   baseURL: API_BASE,

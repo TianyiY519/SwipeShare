@@ -555,89 +555,6 @@ const CreateListingModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   );
 };
 
-const ListingInbox: React.FC<{ listingId: number; currentUser: User }> = ({ listingId }) => {
-  const [convs, setConvs] = useState<any[]>([]);
-  const [activeConv, setActiveConv] = useState<any>(null);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [text, setText] = useState('');
-
-  useEffect(() => {
-    apiClient.get('/api/messaging/conversations/').then((res) => {
-      const all = res.data.results ?? res.data;
-      setConvs(all.filter((c: any) => c.listing === listingId));
-    }).catch(() => {});
-  }, [listingId]);
-
-  const openConv = async (conv: any) => {
-    setActiveConv(conv);
-    const res = await apiClient.get(`/api/messaging/conversations/${conv.id}/messages/`);
-    setMessages(res.data);
-  };
-
-  const reply = async () => {
-    if (!text.trim() || !activeConv) return;
-    try {
-      const res = await apiClient.post(`/api/messaging/conversations/${activeConv.id}/reply/`, { text });
-      setMessages((prev) => [...prev, res.data]);
-      setText('');
-    } catch {}
-  };
-
-  if (convs.length === 0) return null;
-
-  return (
-    <div style={{ marginTop: 16, border: '1px solid #ddd', borderRadius: 10, overflow: 'hidden' }}>
-      <div style={{ padding: '10px 14px', background: '#800000', color: '#fff', fontWeight: 600, fontSize: 14 }}>
-        Messages ({convs.length})
-      </div>
-      {!activeConv ? (
-        <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-          {convs.map((c) => (
-            <div key={c.id} onClick={() => openConv(c)} style={{
-              padding: '10px 14px', borderBottom: '1px solid #eee', cursor: 'pointer',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{c.sender_name}</div>
-                <div style={{ fontSize: 12, color: '#777' }}>{c.last_message?.text || 'No messages'}</div>
-              </div>
-              {c.unread_count > 0 && (
-                <span style={{
-                  background: '#800000', color: '#fff', borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 700,
-                }}>{c.unread_count}</span>
-              )}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div>
-          <div onClick={() => setActiveConv(null)} style={{ padding: '8px 14px', cursor: 'pointer', borderBottom: '1px solid #eee', fontSize: 13, color: '#800000', fontWeight: 600 }}>
-            ← Back · {activeConv.sender_name}
-          </div>
-          <div style={{ maxHeight: 200, overflowY: 'auto', padding: 10, background: '#fafafa' }}>
-            {messages.map((m: any) => (
-              <div key={m.id} style={{ marginBottom: 8, textAlign: m.is_mine ? 'right' : 'left' }}>
-                <div style={{
-                  display: 'inline-block', padding: '8px 12px', borderRadius: 12, maxWidth: '75%', fontSize: 14,
-                  background: m.is_mine ? '#800000' : '#e8e8e8', color: m.is_mine ? '#fff' : '#333',
-                }}>{m.text}</div>
-                <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
-                  {m.author_name} · {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: '1px solid #eee' }}>
-            <input className="input" style={{ flex: 1, margin: 0 }} placeholder="Reply..." value={text}
-              onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && reply()} />
-            <button onClick={reply} style={{ padding: '6px 14px', background: '#800000', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Send</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 const ListingDetailModal: React.FC<{ listing: SwipeListing; currentUser: User; onClose: () => void }> = ({ listing, currentUser, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
@@ -677,7 +594,10 @@ const ListingDetailModal: React.FC<{ listing: SwipeListing; currentUser: User; o
     try {
       const res = await apiClient.get('/api/messaging/conversations/');
       const convs = res.data.results ?? res.data;
-      const existing = convs.find((c: any) => c.listing === listing.id && c.sender === currentUser.id);
+      const existing = convs.find((c: any) =>
+        (c.sender === currentUser.id && c.receiver === listing.user.id) ||
+        (c.sender === listing.user.id && c.receiver === currentUser.id)
+      );
       if (existing) {
         setConvId(existing.id);
         const msgRes = await apiClient.get(`/api/messaging/conversations/${existing.id}/messages/`);
@@ -749,7 +669,11 @@ const ListingDetailModal: React.FC<{ listing: SwipeListing; currentUser: User; o
         {listing.notes && <p><strong>Notes:</strong> {listing.notes}</p>}
       </div>
       {msg && <div className={msg.includes('Match') ? 'success-message' : 'error-message'}>{msg}</div>}
-      {isOwner && <ListingInbox listingId={listing.id} currentUser={currentUser} />}
+      {isOwner && (
+        <p style={{ fontSize: 13, color: '#777', marginTop: 8, fontStyle: 'italic' }}>
+          📨 Messages from interested users appear in your <strong>Messages</strong> tab.
+        </p>
+      )}
       {(isOwner || currentUser.is_staff) && (
         <Button onClick={handleDelete} variant="danger">Delete Listing</Button>
       )}

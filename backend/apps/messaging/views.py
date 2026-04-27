@@ -37,41 +37,41 @@ class ConversationViewSet(viewsets.ModelViewSet):
         if not text:
             return Response({'detail': 'text is required'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Determine the other user
+        target_listing = None
         if listing_id:
-            # Conversation tied to a listing
             try:
-                listing = SwipeListing.objects.get(id=listing_id)
+                target_listing = SwipeListing.objects.get(id=listing_id)
             except SwipeListing.DoesNotExist:
                 return Response({'detail': 'Listing not found'}, status=status.HTTP_404_NOT_FOUND)
-
-            if listing.user == request.user:
-                return Response({'detail': 'Cannot message yourself'}, status=status.HTTP_400_BAD_REQUEST)
-
-            conv, created = Conversation.objects.get_or_create(
-                listing=listing,
-                sender=request.user,
-                defaults={'receiver': listing.user},
-            )
+            other_user = target_listing.user
         elif receiver_id:
-            # Direct message (e.g. from forum)
             try:
-                receiver = User.objects.get(id=receiver_id)
+                other_user = User.objects.get(id=receiver_id)
             except User.DoesNotExist:
                 return Response({'detail': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
-
-            if receiver == request.user:
-                return Response({'detail': 'Cannot message yourself'}, status=status.HTTP_400_BAD_REQUEST)
-
-            conv, created = Conversation.objects.get_or_create(
-                listing=None,
-                sender=request.user,
-                receiver=receiver,
-            )
         else:
             return Response({'detail': 'listing or receiver is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Prepend source context to the first message if provided
-        msg_text = f"[From: {source}]\n{text}" if source and created else text
+        if other_user == request.user:
+            return Response({'detail': 'Cannot message yourself'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Reuse any existing conversation between these two users (in either direction)
+        conv = Conversation.objects.filter(
+            (Q(sender=request.user, receiver=other_user) |
+             Q(sender=other_user, receiver=request.user))
+        ).first()
+        created = False
+        if not conv:
+            conv = Conversation.objects.create(
+                listing=target_listing,
+                sender=request.user,
+                receiver=other_user,
+            )
+            created = True
+
+        # Prepend source context so receiver knows where this message came from
+        msg_text = f"[From: {source}]\n{text}" if source else text
         Message.objects.create(conversation=conv, author=request.user, text=msg_text)
 
         serializer = self.get_serializer(conv)

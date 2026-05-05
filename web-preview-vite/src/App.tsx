@@ -672,7 +672,7 @@ const ListingDetailModal: React.FC<{ listing: SwipeListing; currentUser: User; o
           <Badge text={`x${listing.quantity}`} color="#800000" />
         )}
         {isOwner && !editingQty && (
-          <span onClick={() => setEditingQty(true)} style={{ cursor: 'pointer', fontSize: 12, color: '#800000', textDecoration: 'underline' }}>Edit</span>
+          <span onClick={() => setEditingQty(true)} style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Edit</span>
         )}
       </div>
       <div className="detail-section">

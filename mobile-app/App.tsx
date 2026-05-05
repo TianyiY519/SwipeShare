@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
@@ -6,6 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthProvider, useAuth } from './src/AuthContext';
+import api from './src/api';
 
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -105,6 +106,22 @@ function AdminStackScreen() {
 
 function MainTabs() {
   const { user } = useAuth();
+  const [unreadTotal, setUnreadTotal] = useState(0);
+
+  // Poll unread message count every 5 seconds
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await api.get('/api/messaging/conversations/');
+        const convs = res.data.results ?? res.data;
+        const total = convs.reduce((sum: number, c: any) => sum + (c.unread_count || 0), 0);
+        setUnreadTotal(total);
+      } catch {}
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <Tab.Navigator
@@ -128,7 +145,11 @@ function MainTabs() {
       <Tab.Screen name="Home" component={HomeStackScreen} />
       <Tab.Screen name="Swipes" component={SwipesStackScreen} />
       <Tab.Screen name="Forum" component={ForumStackScreen} />
-      <Tab.Screen name="Messages" component={MessagesStackScreen} />
+      <Tab.Screen
+        name="Messages"
+        component={MessagesStackScreen}
+        options={{ tabBarBadge: unreadTotal > 0 ? unreadTotal : undefined }}
+      />
       <Tab.Screen name="Profile" component={ProfileStackScreen} />
       {user?.is_staff && <Tab.Screen name="Admin" component={AdminStackScreen} />}
     </Tab.Navigator>
